@@ -2,7 +2,7 @@
 
 A browser-based drag-and-drop tool for reordering curriculum topic tags across grades and chapters. Built for [ARVO Schools](https://arvoschools.com) to manage **SNC-aligned FET & Topic Repository mappings** across K–12 subjects.
 
-**[▶ Launch Live Tool](https://YOUR_USERNAME.github.io/arvo-topic-arranger/)**
+**[▶ Launch Live Tool](https://arvoai-03-cloud.github.io/arvo-topic-arranger/)**
 
 ---
 
@@ -22,7 +22,7 @@ A browser-based drag-and-drop tool for reordering curriculum topic tags across g
 
 ### Option 1: Use Online (GitHub Pages)
 
-1. Go to the [live tool link](https://YOUR_USERNAME.github.io/arvo-topic-arranger/)
+1. Go to the [live tool link](https://arvoai-03-cloud.github.io/arvo-topic-arranger/)
 2. Upload your file
 3. Map columns → Arrange → Export
 
