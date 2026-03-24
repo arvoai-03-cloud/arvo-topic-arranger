@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARVO Topic Arranger — CSV Upload</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#f4f6f9;color:#1e293b;min-height:100vh}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+#uploadScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px}
+.upload-card{background:#fff;border-radius:16px;padding:48px 40px;max-width:620px;width:100%;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06),0 8px 30px rgba(0,0,0,.04)}
+.upload-card .logo{background:linear-gradient(135deg,#0d9488,#14b8a6);color:#fff;font-weight:800;font-size:18px;padding:8px 18px;border-radius:10px;letter-spacing:.03em;display:inline-block;margin-bottom:16px}
+.upload-card h1{font-size:22px;font-weight:700;color:#0f172a;margin-bottom:6px}
+.upload-card p.sub{font-size:13px;color:#94a3b8;margin-bottom:28px;line-height:1.5}
+.drop-zone{border:2px dashed #d1d5db;border-radius:12px;padding:44px 24px;cursor:pointer;transition:all .2s;background:#fafbfc;position:relative}
+.drop-zone:hover,.drop-zone.dragover{border-color:#0d9488;background:#f0fdfa}
+.drop-zone svg{margin-bottom:12px;color:#94a3b8}
+.drop-zone h3{font-size:14px;font-weight:600;color:#334155;margin-bottom:4px}
+.drop-zone p{font-size:11px;color:#94a3b8}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.format-hint{margin-top:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:left}
+.format-hint h4{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.format-hint .cols{display:flex;flex-wrap:wrap;gap:5px}
+.format-hint .col-tag{font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px}
+.format-hint .col-tag.req{background:#d1fae5;color:#065f46}
+.format-hint .col-tag.opt{background:#fef3c7;color:#92400e}
+.format-hint p.note{font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.4}
+.error-msg{margin-top:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:12px;color:#dc2626;display:none;text-align:left}
+.mapper-wrap{display:none;min-height:100vh;padding:40px 20px;flex-direction:column;align-items:center;justify-content:center}
+.mapper-card{background:#fff;border-radius:16px;padding:36px 32px;max-width:700px;width:100%;box-shadow:0 1px 3px rgba(0,0,0,.06),0 8px 30px rgba(0,0,0,.04)}
+.mapper-card h2{font-size:18px;font-weight:700;color:#0f172a;margin-bottom:4px}
+.mapper-card p.sub{font-size:12px;color:#94a3b8;margin-bottom:20px}
+.hdr-pick{margin-bottom:20px;padding:14px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px}
+.hdr-pick label{font-size:12px;font-weight:600;color:#0f172a;display:block;margin-bottom:4px}
+.hdr-pick p{font-size:10px;color:#64748b;margin-bottom:8px}
+.hdr-pick select{padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;color:#334155;background:#fff;width:100%}
+.map-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.map-label{width:140px;font-size:12px;font-weight:600;color:#334155;text-align:right;flex-shrink:0}
+.map-label .rq{color:#ef4444;font-size:10px}
+.map-label .op{color:#94a3b8;font-size:9px;font-weight:400}
+.map-select{flex:1;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;color:#334155;background:#f8fafc}
+.map-select:focus{outline:none;border-color:#0d9488;box-shadow:0 0 0 3px rgba(13,148,136,.1)}
+.map-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.btn-back{padding:9px 18px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;background:#fff;color:#64748b}
+.btn-go{padding:9px 22px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#0d9488,#14b8a6);color:#fff;box-shadow:0 2px 6px rgba(13,148,136,.25)}
+.btn-go:hover{transform:translateY(-1px)}
+.pv-wrap{margin-top:16px;overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0}
+.pv-table{width:100%;border-collapse:collapse;font-size:10px}
+.pv-table th{background:#f8fafc;padding:6px 8px;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;text-align:left;white-space:nowrap}
+.pv-table td{padding:5px 8px;color:#334155;border-bottom:1px solid #f1f5f9;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-table tr.hdr-hl td{background:#d1fae5;font-weight:600;color:#065f46}
+#arrangerScreen{display:none}
+.header{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px 12px;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.logo-area{display:flex;align-items:center;gap:12px}
+.hdr-logo{background:linear-gradient(135deg,#0d9488,#14b8a6);color:#fff;font-weight:800;font-size:14px;padding:5px 11px;border-radius:7px}
+.title-text h1{font-size:15px;font-weight:700;color:#0f172a}
+.title-text p{font-size:10px;color:#94a3b8;margin-top:1px}
+.right-actions{display:flex;gap:8px;align-items:center}
+.sm-btn{background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;border-radius:8px;padding:7px 14px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:500}
+.sm-btn:hover{background:#f1f5f9}
+.export-btn{background:linear-gradient(135deg,#0d9488,#14b8a6);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 6px rgba(13,148,136,.25);font-family:inherit}
+.export-btn:hover{transform:translateY(-1px)}
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn-group{display:flex;gap:3px;flex-wrap:wrap}
+.gbtn,.cbtn{border-radius:6px;padding:5px 12px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-family:inherit;transition:all .15s}
+.gbtn.active{background:#0d9488;color:#fff;border-color:#0d9488;font-weight:700}
+.cbtn.active{background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:700}
+.sep{width:1px;height:22px;background:#e2e8f0}
+.stats{margin-left:auto;font-size:10px;color:#94a3b8;display:flex;gap:12px}
+.stats b{color:#334155}
+.stats .chg b{color:#d97706}
+.ch-banner{padding:8px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b}
+.ch-banner b{color:#0f172a}
+.table-wrap{padding:0 16px 80px;overflow-x:auto}
+table.main{width:100%;border-collapse:collapse;font-size:12px}
+table.main thead tr{background:#f8fafc}
+table.main th{padding:9px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+table.main th:nth-child(1){width:32px}table.main th:nth-child(2){width:28px}table.main th:nth-child(4){width:44px}
+tr.row{cursor:grab;border-bottom:1px solid #f1f5f9;background:#fff;transition:background .1s}
+tr.row:nth-child(even){background:#fcfcfd}
+tr.row:hover{background:#f0fdfa}
+tr.row.dragging{opacity:.3;background:#ccfbf1}
+tr.row.over-top{box-shadow:inset 0 2px 0 0 #7c3aed}
+tr.row.over-bottom{box-shadow:inset 0 -2px 0 0 #7c3aed}
+td{padding:8px}
+.num{color:#94a3b8;font-family:'JetBrains Mono',monospace;font-size:10px}
+.grip{color:#cbd5e1;font-size:14px;user-select:none;cursor:grab}
+.fm{color:#0f172a;font-weight:500;max-width:320px}
+.fm.empty{color:#cbd5e1;font-style:italic;font-weight:400}
+.fs{color:#7c3aed;font-weight:500;max-width:260px}
+.fs.empty{color:#cbd5e1;font-style:italic;font-weight:400}
+.tr-col{color:#64748b;max-width:260px}
+.swap-btn{background:#fff;border:1px solid #e2e8f0;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+.swap-btn.to-sub{color:#0d9488}.swap-btn.to-sub:hover{background:#f0fdfa;border-color:#0d9488}
+.swap-btn.to-main{color:#d97706}.swap-btn.to-main:hover{background:#fffbeb;border-color:#d97706}
+.done-mark{color:#cbd5e1;font-size:10px}
+.empty-msg{padding:40px;text-align:center;color:#94a3b8}
+</style>
+</head>
+<body>
+
+<div id="uploadScreen">
+ <div class="upload-card">
+  <div class="logo">ARVO</div>
+  <h1>Topic Arranger</h1>
+  <p class="sub">Upload your CSV or Excel file with topic metadata.<br>Drag rows to reorder, swap FET columns, then export.</p>
+  <div class="drop-zone" id="dropZone">
+   <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+   <h3>Drop your file here</h3>
+   <p>CSV, XLSX, or XLS — any subject, any grade range</p>
+   <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.tsv" onchange="handleFile(this.files[0])">
+  </div>
+  <div class="format-hint">
+   <h4>Expected Columns</h4>
+   <div class="cols">
+    <span class="col-tag req">Grade</span><span class="col-tag req">Chapter</span>
+    <span class="col-tag req">Chapter Name</span><span class="col-tag req">FET Main Topic</span>
+    <span class="col-tag opt">FET Sub Topic</span><span class="col-tag opt">Topic Repository</span>
+    <span class="col-tag opt">Subject</span>
+   </div>
+   <p class="note">Title/metadata rows above your headers are handled — you pick the header row in the next step.</p>
+  </div>
+  <div class="error-msg" id="errorMsg"></div>
+ </div>
+</div>
+
+<div class="mapper-wrap" id="mapperScreen">
+ <div class="mapper-card">
+  <h2>Map Your Columns</h2>
+  <p class="sub">Select header row, then assign each column.</p>
+  <div class="hdr-pick">
+   <label>Which row has your column headers?</label>
+   <p>Files often have title rows at the top. Pick the row with "Grade", "Chapter", "FET - Main Topic", etc.</p>
+   <select id="hdrRowSelect" onchange="onHdrChange()"></select>
+  </div>
+  <div id="mapperRows"></div>
+  <p style="font-size:10px;color:#94a3b8;margin-top:16px;font-weight:600">Preview (header row highlighted green)</p>
+  <div class="pv-wrap"><table class="pv-table" id="pvTable"></table></div>
+  <div class="map-actions">
+   <button class="btn-back" onclick="goBack()">← Back</button>
+   <button class="btn-go" onclick="launch()">Launch Arranger →</button>
+  </div>
+ </div>
+</div>
+
+<div id="arrangerScreen">
+ <div class="header">
+  <div class="top-row">
+   <div class="logo-area">
+    <div class="hdr-logo">ARVO</div>
+    <div class="title-text"><h1 id="arrTitle">Topic Arranger</h1><p>Drag to reorder • Move FET Main ↔ Sub • Export when done</p></div>
+   </div>
+   <div class="right-actions">
+    <button class="sm-btn" onclick="resetAll()">+ New File</button>
+    <button class="sm-btn" id="undoBtn" onclick="undo()" style="display:none">↩ Undo</button>
+    <button class="export-btn" onclick="doExport()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Excel</button>
+   </div>
+  </div>
+  <div class="filters">
+   <div class="btn-group" id="gradeBar"></div><div class="sep"></div><div class="btn-group" id="chBar"></div>
+   <div class="stats"><span>Showing <b id="showCount">0</b></span><span>Total <b id="totalCount">0</b></span><span class="chg">Changes <b id="changeCount">0</b></span></div>
+  </div>
+ </div>
+ <div class="ch-banner" id="chBanner" style="display:none">Chapter: <b id="chName"></b></div>
+ <div class="table-wrap">
+  <table class="main"><thead><tr><th>#</th><th></th><th>FET — Main Topic</th><th>↔</th><th>FET — Sub Topic</th><th>Topic Repository</th></tr></thead><tbody id="tbody"></tbody></table>
+  <div class="empty-msg" id="emptyMsg" style="display:none">No rows for this selection.</div>
+ </div>
+</div>
+
+<script>
+let rawMatrix=[],hdrIdx=0,headers=[],mapping={},origHdrNames={},origFileName='';
+let DATA=[],grade=1,chapter=1,changes=0,hist=[],dragIdx=null;
+const ROLES=[
+ {key:'subject',label:'Subject',req:false},
+ {key:'grade',label:'Grade',req:true},
+ {key:'chapter',label:'Chapter',req:true},
+ {key:'chapterName',label:'Chapter Name',req:true},
+ {key:'fetMain',label:'FET - Main Topic',req:true},
+ {key:'fetSub',label:'FET - Sub Topic',req:false},
+ {key:'topicRepo',label:'Topic Repository',req:false},
+];
+
+// Upload
+const dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0])});
+
+function showErr(m){const e=document.getElementById('errorMsg');e.textContent=m;e.style.display='block'}
+function hideErr(){document.getElementById('errorMsg').style.display='none'}
+
+function handleFile(file){
+ hideErr();if(!file)return;
+ origFileName=file.name.replace(/\.[^.]+$/,'');
+ const ext=file.name.split('.').pop().toLowerCase();
+ if(ext==='csv'||ext==='tsv'){
+  Papa.parse(file,{header:false,skipEmptyLines:true,
+   complete:r=>{if(!r.data||!r.data.length){showErr('Empty file.');return}rawMatrix=r.data;showMapper()},
+   error:e=>showErr('Parse error: '+e.message)});
+ }else if(ext==='xlsx'||ext==='xls'){
+  const rd=new FileReader();
+  rd.onload=e=>{try{
+   const wb=XLSX.read(e.target.result,{type:'array'});
+   const ws=wb.Sheets[wb.SheetNames[0]];
+   const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+   if(!aoa||!aoa.length){showErr('Empty sheet.');return}rawMatrix=aoa;showMapper();
+  }catch(err){showErr('Read error: '+err.message)}};
+  rd.readAsArrayBuffer(file);
+ }else showErr('Use CSV, TSV, XLSX, or XLS.');
+}
+
+// Mapper
+function showMapper(){
+ document.getElementById('uploadScreen').style.display='none';
+ document.getElementById('mapperScreen').style.display='flex';
+ // Auto-detect header row
+ const kw=['grade','chapter','fet','topic','subject','main topic','sub topic'];
+ let best=0,bestScore=0;
+ for(let i=0;i<Math.min(rawMatrix.length,15);i++){
+  const s=rawMatrix[i].map(c=>String(c||'').toLowerCase()).join(' ');
+  const score=kw.filter(k=>s.includes(k)).length;
+  if(score>bestScore){bestScore=score;best=i}
+ }
+ hdrIdx=best;
+ const sel=document.getElementById('hdrRowSelect');sel.innerHTML='';
+ for(let i=0;i<Math.min(rawMatrix.length,20);i++){
+  const pv=rawMatrix[i].slice(0,5).map(c=>{const s=String(c||'').trim();return s.length>30?s.slice(0,30)+'…':s}).filter(Boolean).join(' | ');
+  const o=document.createElement('option');o.value=i;o.textContent='Row '+(i+1)+': '+pv;
+  if(i===hdrIdx)o.selected=true;sel.appendChild(o);
+ }
+ onHdrChange();
+}
+
+function onHdrChange(){
+ hdrIdx=parseInt(document.getElementById('hdrRowSelect').value);
+ headers=rawMatrix[hdrIdx].map(c=>String(c||'').trim());
+ mapping={};
+ ROLES.forEach(r=>{const m=headers.find(h=>fmatch(h,r.key,r.label));if(m)mapping[r.key]=m});
+ renderMapper();renderPV();
+}
+
+function fmatch(h,key,label){
+ const n=h.toLowerCase().replace(/[^a-z0-9]/g,'');
+ const chk=[key.toLowerCase(),label.toLowerCase().replace(/[^a-z0-9]/g,'')];
+ if(key==='fetMain')chk.push('fetmaintopic','maintopic');
+ if(key==='fetSub')chk.push('fetsubtopic','subtopic');
+ if(key==='topicRepo')chk.push('topicrepository');
+ if(key==='chapterName')chk.push('chaptername');
+ return chk.some(c=>n.includes(c.replace(/[^a-z0-9]/g,'')));
+}
+
+function renderMapper(){
+ const c=document.getElementById('mapperRows');c.innerHTML='';
+ ROLES.forEach(r=>{
+  const d=document.createElement('div');d.className='map-row';
+  d.innerHTML='<div class="map-label">'+r.label+' '+(r.req?'<span class="rq">*</span>':'<span class="op">(optional)</span>')+'</div>'+
+   '<select class="map-select" onchange="mapping[\''+r.key+'\']=this.value||null"><option value="">— skip —</option>'+
+   headers.map(h=>'<option value="'+esc(h)+'"'+(mapping[r.key]===h?' selected':'')+'>'+esc(h)+'</option>').join('')+'</select>';
+  c.appendChild(d);
+ });
+}
+
+function renderPV(){
+ const t=document.getElementById('pvTable');
+ const s=Math.max(0,hdrIdx-1),e=Math.min(rawMatrix.length,hdrIdx+4),mc=rawMatrix[hdrIdx].length;
+ let h='<thead><tr><th>Row</th>';for(let i=0;i<mc;i++)h+='<th>Col '+(i+1)+'</th>';h+='</tr></thead><tbody>';
+ for(let r=s;r<e;r++){
+  h+='<tr'+(r===hdrIdx?' class="hdr-hl"':'')+'><td style="color:#94a3b8;font-weight:600">'+(r+1)+(r===hdrIdx?' ✓':'')+'</td>';
+  for(let c=0;c<mc;c++)h+='<td>'+esc(String(rawMatrix[r]?rawMatrix[r][c]||'':''))+'</td>';
+  h+='</tr>';
+ }
+ t.innerHTML=h+'</tbody>';
+}
+
+function goBack(){document.getElementById('mapperScreen').style.display='none';document.getElementById('uploadScreen').style.display='flex'}
+
+function launch(){
+ const miss=ROLES.filter(r=>r.req&&!mapping[r.key]);
+ if(miss.length){alert('Map required: '+miss.map(r=>r.label).join(', '));return}
+ const ci={};Object.entries(mapping).forEach(([k,v])=>{if(v)ci[k]=headers.indexOf(v)});
+ origHdrNames={};Object.entries(mapping).forEach(([k,v])=>{if(v)origHdrNames[k]=v});
+ const dataRows=rawMatrix.slice(hdrIdx+1);
+ DATA=[];
+ const cl=v=>{let s=String(v||'').trim();if(s==='nan'||s==='undefined'||s==='NaN')s='';return s};
+ dataRows.forEach(row=>{
+  const g=parseInt(ci.grade!==undefined?row[ci.grade]:'');
+  const c=parseInt(ci.chapter!==undefined?row[ci.chapter]:'');
+  if(isNaN(g)||isNaN(c))return;
+  DATA.push({i:DATA.length,g,c,
+   cn:cl(ci.chapterName!==undefined?row[ci.chapterName]:''),
+   fm:cl(ci.fetMain!==undefined?row[ci.fetMain]:''),
+   fs:cl(ci.fetSub!==undefined?row[ci.fetSub]:''),
+   tr:cl(ci.topicRepo!==undefined?row[ci.topicRepo]:''),
+   subj:cl(ci.subject!==undefined?row[ci.subject]:''),
+  });
+ });
+ if(!DATA.length){alert('No valid rows. Check Grade/Chapter have numbers.');return}
+ changes=0;hist=[];
+ document.getElementById('mapperScreen').style.display='none';
+ document.getElementById('arrangerScreen').style.display='block';
+ document.getElementById('totalCount').textContent=DATA.length;
+ document.getElementById('arrTitle').textContent=(DATA[0].subj||'Topic')+' Arranger';
+ const gs=[...new Set(DATA.map(r=>r.g))].sort((a,b)=>a-b);
+ grade=gs[0];buildGB(gs);const chs=gC(grade);chapter=chs[0]||1;buildCB(chs);render();
+}
+
+function resetAll(){
+ document.getElementById('arrangerScreen').style.display='none';
+ document.getElementById('uploadScreen').style.display='flex';
+ document.getElementById('fileInput').value='';
+ DATA=[];rawMatrix=[];mapping={};changes=0;hist=[];
+}
+
+// Arranger
+function buildGB(gs){
+ if(!gs)gs=[...new Set(DATA.map(r=>r.g))].sort((a,b)=>a-b);
+ const b=document.getElementById('gradeBar');b.innerHTML='';
+ gs.forEach(g=>{const btn=document.createElement('button');btn.className='gbtn'+(g===grade?' active':'');btn.textContent='Grade '+g;btn.onclick=()=>sG(g);b.appendChild(btn)});
+}
+function gC(g){const s=new Set();DATA.filter(r=>r.g===g).forEach(r=>s.add(r.c));return[...s].sort((a,b)=>a-b)}
+function sG(g){grade=g;const c=gC(g);chapter=c[0]||1;buildGB();buildCB(c);render()}
+function buildCB(chs){
+ const b=document.getElementById('chBar');b.innerHTML='';
+ chs.forEach(c=>{const btn=document.createElement('button');btn.className='cbtn'+(c===chapter?' active':'');btn.textContent='Ch '+c;btn.onclick=()=>{chapter=c;buildCB(chs);render()};b.appendChild(btn)});
+}
+function gF(){return DATA.filter(r=>r.g===grade&&r.c===chapter)}
+function gGI(){const x=[];DATA.forEach((r,i)=>{if(r.g===grade&&r.c===chapter)x.push(i)});return x}
+
+function render(){
+ const f=gF(),tb=document.getElementById('tbody'),bn=document.getElementById('chBanner'),em=document.getElementById('emptyMsg');
+ document.getElementById('showCount').textContent=f.length;
+ document.getElementById('changeCount').textContent=changes;
+ document.getElementById('undoBtn').style.display=hist.length?'inline-flex':'none';
+ if(!f.length){tb.innerHTML='';bn.style.display='none';em.style.display='block';return}
+ em.style.display='none';bn.style.display='block';
+ document.getElementById('chName').textContent=f[0].cn;
+ let h='';
+ f.forEach((r,i)=>{
+  const hf=r.fm&&r.fm.trim(),hs=r.fs&&r.fs.trim();let sw='';
+  if(hf&&!hs)sw='<button class="swap-btn to-sub" onclick="mTS('+r.i+')" title="Move to Sub">→</button>';
+  else if(hs&&!hf)sw='<button class="swap-btn to-main" onclick="mTM('+r.i+')" title="Move to Main">←</button>';
+  else if(hf&&hs)sw='<span class="done-mark">✓</span>';
+  h+='<tr class="row" draggable="true" ondragstart="ds(event,'+i+')" ondragend="de(event)" ondragover="dov(event,'+i+')" ondragleave="dl(event)" ondrop="dd(event,'+i+')"><td class="num">'+(i+1)+'</td><td class="grip">⠿</td><td class="fm'+(hf?'':' empty')+'">'+(hf?esc(r.fm):'—')+'</td><td style="text-align:center">'+sw+'</td><td class="fs'+(hs?'':' empty')+'">'+(hs?esc(r.fs):'—')+'</td><td class="tr-col">'+esc(r.tr)+'</td></tr>';
+ });
+ tb.innerHTML=h;
+}
+
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function ds(e,i){dragIdx=i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',i);setTimeout(()=>e.target.classList.add('dragging'),0)}
+function de(e){e.target.classList.remove('dragging');dragIdx=null;document.querySelectorAll('.over-top,.over-bottom').forEach(el=>el.classList.remove('over-top','over-bottom'))}
+function dov(e,i){e.preventDefault();const tr=e.target.closest('tr');if(!tr)return;document.querySelectorAll('.over-top,.over-bottom').forEach(el=>el.classList.remove('over-top','over-bottom'));if(dragIdx!==null&&dragIdx!==i)tr.classList.add(dragIdx>i?'over-top':'over-bottom')}
+function dl(e){const tr=e.target.closest('tr');if(tr)tr.classList.remove('over-top','over-bottom')}
+function dd(e,di){
+ e.preventDefault();if(dragIdx===null||dragIdx===di)return;sH();
+ const gi=gGI(),items=gi.map(i=>DATA[i]);const[m]=items.splice(dragIdx,1);items.splice(di,0,m);
+ gi.forEach((g,l)=>{DATA[g]=items[l]});changes++;dragIdx=null;render();
+}
+function mTS(id){sH();const r=DATA.find(x=>x.i===id);if(r&&r.fm&&!r.fs){r.fs=r.fm;r.fm='';changes++;render()}}
+function mTM(id){sH();const r=DATA.find(x=>x.i===id);if(r&&r.fs&&!r.fm){r.fm=r.fs;r.fs='';changes++;render()}}
+function sH(){hist.push(JSON.stringify(DATA));if(hist.length>50)hist.shift()}
+function undo(){if(!hist.length)return;DATA=JSON.parse(hist.pop());changes=Math.max(0,changes-1);render()}
+
+function doExport(){
+ const hS=origHdrNames.subject||'Subject',hG=origHdrNames.grade||'Grade',hC=origHdrNames.chapter||'Chapter';
+ const hN=origHdrNames.chapterName||'Chapter Name',hF=origHdrNames.fetMain||'FET - Main Topic';
+ const hFS=origHdrNames.fetSub||'FET - Sub Topic',hT=origHdrNames.topicRepo||'Topic Repository';
+ const hr=[hS,hG,hC,hN,hF,hFS,hT];
+ const ds=DATA[0]?.subj||'Science';
+ const rows=DATA.map(r=>[r.subj||ds,r.g,r.c,r.cn,r.fm||'',r.fs||'',r.tr]);
+ const ws=XLSX.utils.aoa_to_sheet([hr,...rows]);
+ ws['!cols']=[{wch:12},{wch:7},{wch:9},{wch:35},{wch:50},{wch:30},{wch:40}];
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,ws,(ds+'_ARVO').slice(0,31));
+ XLSX.writeFile(wb,(origFileName||'Reordered')+'_Reordered.xlsx');
+}
+</script>
+</body>
+</html>
